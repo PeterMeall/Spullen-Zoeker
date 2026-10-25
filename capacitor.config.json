@@ -1,0 +1,6 @@
+{
+  "appId": "nl.spullenzoeker.app",
+  "appName": "Spullenzoeker",
+  "webDir": "www",
+  "server": { "androidScheme": "https" }
+}
