@@ -7,7 +7,7 @@ const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(
 const collator = new Intl.Collator('nl', { sensitivity: 'base', numeric: true });
 const byName = (a, b) => collator.compare(a.name || '', b.name || '');
 
-const COLORS = ['#2f6f62', '#3b82f6', '#8b5cf6', '#ec4899', '#ef4444', '#f97316', '#eab308', '#84cc16', '#14b8a6', '#64748b'];
+const COLORS = ['#A0441F', '#B45A12', '#A58B5F', '#3A6528', '#6B8F71', '#2F6F62', '#3B5B7E', '#7A3566', '#B5485D', '#4A3D33'];
 const ICONS = ['📦', '🔧', '🛠️', '🔨', '🪛', '🔌', '💡', '🔋', '🧳', '☂️', '🧢', '🧣', '🧤', '👕', '👖', '👟', '🧦', '🛏️', '🧸', '🎲',
   '📚', '📄', '📁', '🖊️', '🍽️', '🍳', '🥣', '☕', '🧴', '🧼', '🧹', '🧽', '🪣', '💊', '🩹', '📷', '🎧', '💻', '🎮', '⚽',
   '🚲', '⛺', '🎒', '🎁', '🕯️', '🪴', '🖼️', '🧵', '✂️', '🔑', '🗝️', '📱'];
@@ -67,6 +67,14 @@ async function makeCloudStore() {
   let unsubs = [];
   let user = null;
   const ref = (col, id) => fsM.doc(db, 'users', user.uid, col, id);
+  // Niet wachten op de server: de lokale cache toont de wijziging direct. Fouten worden getoond.
+  const guard = p => {
+    p.catch(e => {
+      console.error(e);
+      toast(e?.code === 'permission-denied' ? 'Geen toestemming. Publiceer de Firestore-regels.' : 'Opslaan mislukt. Controleer je verbinding.');
+    });
+    return Promise.resolve();
+  };
   return {
     mode: 'cloud',
     get user() { return user; },
@@ -84,16 +92,19 @@ async function makeCloudStore() {
               DEFAULT_CATS.forEach(k => { const o = { ...k, id: uid() }; fsM.setDoc(ref('categories', o.id), o); });
             }
             changed();
+          }, err => {
+            console.error(err);
+            toast(err?.code === 'permission-denied' ? 'Geen toegang tot de database. Publiceer de Firestore-regels.' : 'Synchroniseren mislukt.');
           }));
         });
       });
     },
-    async put(col, obj) { await fsM.setDoc(ref(col, obj.id), obj); },
-    async remove(col, id) { await fsM.deleteDoc(ref(col, id)); },
+    put(col, obj) { return guard(fsM.setDoc(ref(col, obj.id), obj)); },
+    remove(col, id) { return guard(fsM.deleteDoc(ref(col, id))); },
     async replaceAll(d) {
       for (const c of COLS) {
-        for (const o of state[c]) await fsM.deleteDoc(ref(c, o.id));
-        for (const o of (d[c] || [])) await fsM.setDoc(ref(c, o.id), o);
+        for (const o of state[c]) guard(fsM.deleteDoc(ref(c, o.id)));
+        for (const o of (d[c] || [])) guard(fsM.setDoc(ref(c, o.id), o));
       }
     },
     login: (email, pw) => authM.signInWithEmailAndPassword(auth, email, pw),
@@ -148,6 +159,42 @@ function toast(msg) {
 function openModal(html) { $('#sheet').innerHTML = html; $('#modal').classList.remove('hidden'); }
 function closeModal() { $('#modal').classList.add('hidden'); $('#sheet').innerHTML = ''; }
 
+/* ---------- welkomstscherm ---------- */
+const WKEY = 'spullenzoeker-welkom';
+let welcomeChecked = false;
+const welcomeSlides = () => [
+  { icon: '🗄️', title: 'Welkom bij Spullenzoeker', text: 'Nooit meer zoeken naar die ene boormachine. Hier houd je bij wat er in welke kast ligt, zodat je alles altijd terugvindt.' },
+  { icon: '📍', title: 'Begin met je opbergplekken', text: 'Tik op "Locatie toevoegen". Kies de ruimte (bijvoorbeeld Slaapkamer), geef de kast een naam en een kleur, en voeg vakken toe, zoals "Plank 1 (bovenste)".' },
+  { icon: '📦', title: 'Voeg je spullen toe', text: 'Tik op "Item toevoegen" en kies een locatie, vak, categorie en icoon. Op de startpagina tik je op een kast om de vakken te openen en op een vak om de inhoud te zien.' },
+  { icon: '🔍', title: 'Vind alles terug', text: 'Typ in de zoekbalk bovenaan. Je vindt spullen op naam, categorie, plek of de naam van degene die het geleend heeft.' },
+  { icon: '🤝', title: 'Uitlenen en verplaatsen', text: 'Met 🤝 leg je vast aan wie je iets uitleent en sinds wanneer. Met ↔️ verplaats je een item naar een andere plek en met 🗑️ verwijder je het.' },
+  store?.mode === 'cloud'
+    ? { icon: '☁️', title: 'Op al je apparaten', text: 'Log op je telefoon en laptop in met hetzelfde account, dan staat alles overal gelijk. Deze uitleg kun je altijd opnieuw bekijken via Instellingen.' }
+    : { icon: '📱', title: 'Alles blijft bij je', text: 'Je gegevens worden op dit apparaat bewaard. Maak regelmatig een back-up via Instellingen. Deze uitleg kun je daar ook opnieuw bekijken.' }
+];
+function showWelcome(step = 0) {
+  const slides = welcomeSlides(), s = slides[step], last = step === slides.length - 1;
+  $('#welcomesheet').innerHTML = `<div class="wel">
+    <div class="big">${s.icon}</div><h3>${esc(s.title)}</h3><p>${esc(s.text)}</p>
+    <div class="dots">${slides.map((_, i) => `<i class="${i === step ? 'on' : ''}"></i>`).join('')}</div>
+    <div class="actions"><button class="btn primary" data-act="${last ? 'welcomeDone' : 'welcomeNext'}" data-step="${step + 1}">${last ? 'Aan de slag' : 'Volgende'}</button></div>
+    ${last ? '' : '<button class="skip" data-act="welcomeSkip">Overslaan</button>'}
+  </div>`;
+  $('#welcome').classList.remove('hidden');
+}
+function endWelcome() {
+  $('#welcome').classList.add('hidden');
+  try { localStorage.setItem(WKEY, '1'); } catch { /* geen opslag beschikbaar */ }
+}
+function maybeWelcome() {
+  if (welcomeChecked || !store) return;
+  if (store.mode === 'cloud' && !store.user) return;
+  welcomeChecked = true;
+  let seen = false;
+  try { seen = localStorage.getItem(WKEY) === '1'; } catch { /* negeren */ }
+  if (!seen) showWelcome(0);
+}
+
 /* ---------- weergave ---------- */
 const TITLES = { home: 'Spullenzoeker', items: 'Items', locations: 'Locaties', settings: 'Instellingen' };
 
@@ -165,6 +212,7 @@ function render() {
   if (ui.tab === 'settings') v.innerHTML = settingsView();
   if (ui.tab === 'home') renderHomeBody();
   if (ui.tab === 'items') renderItemsBody();
+  maybeWelcome();
 }
 
 function itemRow(it, q = '', showPath = false) {
@@ -280,6 +328,10 @@ function settingsView() {
     ${cloud
       ? `<p>Ingelogd als <b>${esc(store.user?.email || '')}</b>. Je gegevens worden gesynchroniseerd tussen al je apparaten.</p><button class="btn" data-act="logout">Uitloggen</button>`
       : `<p>De app draait nu <b>lokaal</b>: gegevens staan alleen op dit apparaat. Vul <code>firebase-config.js</code> in om te synchroniseren tussen telefoon en laptop.</p>`}
+  </div>
+  <div class="settings-block"><h3>Uitleg</h3>
+    <p class="muted">Bekijk de korte rondleiding door de app nog eens.</p>
+    <button class="btn" data-act="showWelcome">Rondleiding bekijken</button>
   </div>
   <div class="settings-block"><h3>Categorieën</h3>
     ${[...state.categories].sort(byName).map(c => `<div class="catrow"><span style="font-size:1.4rem">${esc(c.icon)}</span><span class="grow">${esc(c.name)}</span>
@@ -407,6 +459,10 @@ function authMsg(code = '') {
 
 /* ---------- acties ---------- */
 const actions = {
+  showWelcome: () => showWelcome(0),
+  welcomeNext: d => showWelcome(+d.step),
+  welcomeSkip: () => endWelcome(),
+  welcomeDone: () => { endWelcome(); if (!state.locations.length) locForm(); },
   tab: d => { ui.tab = d.tab; render(); window.scrollTo(0, 0); },
   toggleLoc: d => { ui.expLoc.has(d.id) ? ui.expLoc.delete(d.id) : ui.expLoc.add(d.id); render(); },
   toggleSec: d => { ui.expSec.has(d.key) ? ui.expSec.delete(d.key) : ui.expSec.add(d.key); render(); },

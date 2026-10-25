@@ -1,4 +1,4 @@
-const CACHE = 'spullenzoeker-v2';
+const CACHE = 'spullenzoeker-v4';
 const FILES = ['./', 'index.html', 'styles.css', 'app.js', 'firebase-config.js', 'manifest.json', 'icon.svg'];
 
 self.addEventListener('install', e => {
