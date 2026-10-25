@@ -248,11 +248,11 @@ function itemRow(it, q = '', showPath = false) {
       ${c ? `<span class="chip">${esc(c.icon)} ${esc(c.name)}</span>` : ''}
       ${it.lent ? `<div class="lent">🤝 ${lentLine}${it.lent.note ? ` · ${esc(it.lent.note)}` : ''}</div>` : ''}
     </div>
-    ${it.lent
-      ? `<button class="iconbtn" title="${t('Teruggebracht')}" data-act="returnItem" data-id="${it.id}">✅</button>`
-      : `<button class="iconbtn" title="${t('Uitlenen')}" data-act="lendItem" data-id="${it.id}">🤝</button>`}
-    <button class="iconbtn" title="${t('Verplaatsen')}" data-act="moveItem" data-id="${it.id}">↔️</button>
-    <button class="iconbtn" title="${t('Verwijderen')}" data-act="delItem" data-id="${it.id}">🗑️</button>
+    <div class="acts">    ${it.lent
+        ? `<button class="iconbtn" title="${t('Teruggebracht')}" data-act="returnItem" data-id="${it.id}">✅</button>`
+        : `<button class="iconbtn" title="${t('Uitlenen')}" data-act="lendItem" data-id="${it.id}">🤝</button>`}
+      <button class="iconbtn" title="${t('Verplaatsen')}" data-act="moveItem" data-id="${it.id}">↔️</button>
+      <button class="iconbtn" title="${t('Verwijderen')}" data-act="delItem" data-id="${it.id}">🗑️</button></div>
   </div>`;
 }
 
