@@ -5,4 +5,5 @@ const files = ['index.html', 'styles.css', 'app.js', 'firebase-config.js', 'mani
 rmSync('www', { recursive: true, force: true });
 mkdirSync('www', { recursive: true });
 for (const f of files) cpSync(f, `www/${f}`);
+cpSync('icons', 'www/icons', { recursive: true });
 console.log('www/ is klaar');
